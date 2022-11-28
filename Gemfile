@@ -65,3 +65,8 @@ group :development do
   # gem "spring"
 end
 
+group :test do
+  gem 'rails-controller-testing'
+  gem 'faker'
+  gem 'shoulda-matchers'
+end

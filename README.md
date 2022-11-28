@@ -345,3 +345,200 @@
 	  </ul>
 	<% end %>
 	```
+
+9. Функциональные тесты контроллера и модели
+
+	На этом шаге приступим к покрытию реализованного функционала тестами.
+
+	Сначала следует добавить гемы, которые будут помогать писать тесты (rspec был поставлен заранее). Добавим в `Gemfile` следующую группу:
+	```ruby
+	group :test do
+  	  gem 'rails-controller-testing' # гем для тестирования контроллеров (нам нужен метод assigns)
+  	  gem 'faker' # гем для генерирования случайных данных
+  	  gem 'shoulda-matchers' # гем для более простых записей тестов (будет использоваться в тестах модели)
+	end
+	```
+
+	После модифицирования Gemfile необходимо выполнить команду `bundle install`, чтобы установить добавленные гемы.
+
+	ВНИМАНИЕ! Гем shoulda-matchers требует дополнительной настройки в файле `specs/rails_helper.rb`. Туда надо поместить следующие строки:
+	```ruby
+	Shoulda::Matchers.configure do |config|
+	  config.integrate do |with|
+		with.test_framework :rspec
+		with.library :rails
+	  end
+	end
+	```
+
+	Теперь можно приступать к тестам контроллера `specs/requests/calculator_spec.rb`. Степень покрытия разных параметров тестами каждый определяет сам. В данном примере будут проверяться ответы контроллера в зависимости от различных параметров:
+	* статус ответа
+	* какие шаблоны контроллер отправил браузеру
+	* в каком формате контроллер отвечал (html или turbo_stream)
+	* валидная ли модель была инициализирована в контроллере (с помощью метода `assigns` из гема `rails-controller-testing`)
+
+	Пример такого теста:
+	```ruby
+	# frozen_string_literal: true
+
+	require 'rails_helper'
+
+	RSpec.describe 'Calculators', type: :request do
+	  # Тестируем корневой маршрут
+	  describe 'GET /' do
+		before { get root_path } # перед каждым тестом делать запрос
+
+		it 'returns http success' do
+		  expect(response).to have_http_status(:success)
+		end
+
+		it 'renders input template' do
+		  expect(response).to render_template(:input)
+		end
+
+		it 'responds with html' do
+		  expect(response.content_type).to match(%r{text/html})
+		end
+	  end
+
+	  # Тестируем маршрут вывода результата
+	  describe 'GET /result' do
+	    # Сценарий, когда параметры неправильные
+	    context 'when params are invalid' do
+		  before {  post result_path, xhr: true } # перед каждым тестом делать запрос (xhr: true - значит асинхронно, чтобы работал turbo)
+
+		  it 'returns http success' do
+			expect(response).to have_http_status(:success)
+		  end
+
+		  it 'renders result templates' do
+		    expect(response).to render_template(:result)
+			expect(response).to render_template(:_result_message)
+		  end
+
+		  it 'responds with turbo stream' do
+			expect(response.content_type).to match(%r{text/vnd.turbo-stream.html})
+		  end
+
+		  it 'assigns invalid model object' do
+			expect(assigns(:calculator).valid?).to be false
+		  end
+		end
+
+		# Сценарий, когда парамаетры правильные
+		context 'when params are ok' do
+		  # создаем случайные значения
+		  let(:x_param) { Faker::Number.number(digits: 3) }
+		  let(:y_param) { Faker::Number.number(digits: 3) }
+		  let(:operation_param) { ['+', '-', '*', '/'].sample }
+
+		  # перед каждым тестом делать запрос (params - параметры запроса, xhr: true - выполнить асинхронно, чтобы работал turbo)
+		  before { post result_path, params: { x: x_param, y: y_param, operation: operation_param }, xhr: true }
+
+		  it 'returns http success' do
+			expect(response).to have_http_status(:success)
+		  end
+
+		  it 'renders result templates' do
+			expect(response).to render_template(:result)
+			expect(response).to render_template(:_result_message)
+		  end
+
+		  it 'responds with turbo stream' do
+			expect(response.content_type).to match(%r{text/vnd.turbo-stream.html})
+		  end
+
+		  it 'assigns valid model object' do
+			expect(assigns(:calculator).valid?).to be true
+		  end
+		end
+	  end
+	end
+	```
+
+	Затем следует покрыть тестами модель `CalculatorResult`. Для этого необходимо в директории `specs` создать еще одну директорию и назвать ее `models`. Сам файл должен называться `calculator_result_spec.rb`.
+
+	В тесте модели проверим:
+	* проверяет ли модель наличие `x`, `y`, `operation` и какое сообщение выдает
+	* проверяет ли модель, что `operation` входит в список разрешенных значений и какое сообщение выдает
+	* проверяет ли модель, что `x` и `y` являются числами
+	* работа метода `result` для каждой математической операции
+
+	Пример такого теста:
+
+	```ruby
+	# frozen_string_literal: true
+
+	require 'rails_helper'
+
+	RSpec.describe CalculatorResult, type: :model do
+	  # тестируем валидации
+	  describe 'validations' do
+	    # тестируем, что модель проверяет наличие параметров и выводит соответствующее сообщение
+		it { should validate_presence_of(:x).with_message('не может быть пустым') }
+		it { should validate_presence_of(:y).with_message('не может быть пустым') }
+		it { should validate_presence_of(:operation).with_message('не может быть пустым') }
+
+		# тестируем, что модель проверяет параметр operation на вхождение в список
+		it do
+		  should validate_inclusion_of(:operation).in_array(%w[* / + -])
+												  .with_message('не входит в список доступных операций')
+		end
+
+		# тестируем валидации, когда x и y не являются числами
+		context 'when x or y are not digits' do
+		  it { should_not allow_value(Faker::Lorem.word).for(:x) }
+		  it { should_not allow_value(Faker::Lorem.word).for(:y) }
+		end
+
+		# тестируем валидации, когда x и y являются числами
+		context 'when x or y are digits' do
+		  it { should allow_value(Faker::Number.number).for(:x) }
+		  it { should allow_value(Faker::Number.number).for(:y) }
+		end
+	  end
+
+	  # тестируем работу метода result
+	  describe '#result' do
+	    let(:x_param) { Faker::Number.number.to_f }
+		let(:y_param) { Faker::Number.number.to_f }
+		let(:params) { { x: x_param, y: y_param, operation: operation_param } }
+
+		subject { described_class.new(params) }
+
+		context 'when operation is +' do
+		  let(:operation_param) { '+' }
+
+		  it 'should sum values' do
+			expect(subject.result).to eq(x_param + y_param)
+		  end
+	    end
+
+		context 'when operation is -' do
+		  let(:operation_param) { '-' }
+
+		  it 'should subtract values' do
+			expect(subject.result).to eq(x_param - y_param)
+		  end
+		end
+
+		context 'when operation is *' do
+		  let(:operation_param) { '*' }
+
+		  it 'should multiply values' do
+			expect(subject.result).to eq(x_param * y_param)
+		  end
+		end
+
+		context 'when operation is /' do
+		  let(:operation_param) { '/' }
+
+		  it 'should divide values' do
+			expect(subject.result).to eq(x_param / y_param)
+		  end
+		end
+	  end
+	end
+	```
+
+	ПРИМЕЧАНИЕ: методы `should`, `should_not`, `validate_presence_of`, `validate_inclusion_of` появились благодаря гему `shoulda-matchers`.
