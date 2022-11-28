@@ -1,2 +1,21 @@
-<h1>Calculator#input</h1>
-<p>Find me in app/views/calculator/input.html.erb</p>
+<h1>Калькулятор</h1>
+
+<h3>Введите значения и выберите математическую операцию</h3>
+
+<%= form_with url: result_path do |form| %>
+  <%= form.label('Значение x:') %>
+  <%= form.number_field(:x) %><br/>
+  <%= form.label('Значение y:') %>
+  <%= form.number_field(:y) %><br/>
+
+  <table>
+    <% ['+', '-', '*', '/'].each do |operation| %>
+      <tr>
+        <td><%= form.label(operation) %></td>
+        <td><%= form.radio_button(:operation, operation, id: "operation_#{operation}") %></td>
+      </tr>
+    <% end %>
+  </table>
+
+  <%= form.submit('Посчитать', id: 'calculate-btn') %>
+<% end %>

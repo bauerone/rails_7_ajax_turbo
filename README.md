@@ -116,3 +116,50 @@
 		```console
 		rails routes -c calculator --expanded
 		```
+
+5. Создание формы калькулятора
+
+	Так как в предыдущем пункте экшн `input` контроллера `Calculator` был установлен в виде стартового по умолчанию, то верстку формы калькулятора следует поместить в шаблон `input.html.erb`, который находится в директории `app/views/calculator`.
+
+	В процессе верстки использовались вспомогательные методы Rails:
+	* `form_with` - метод создания формы
+	* `label` - текстовая метка
+	* `number_field` - поле для ввода чисел
+	* `radio_button` - кнопка-переключатель
+	* `submit` - кнопка подтверждения формы
+
+	Содержимое `input.html.erb`:
+	```
+	<h1>Калькулятор</h1>
+
+	<h3>Введите значения и выберите математическую операцию</h3>
+
+	<%= form_with url: result_path do |form| %>
+	  <%= form.label('Значение x:') %>
+	  <%= form.number_field(:x) %><br/>
+	  <%= form.label('Значение y:') %>
+	  <%= form.number_field(:y) %><br/>
+
+	  <table>
+	    <% ['+', '-', '*', '/'].each do |operation| %>
+		  <tr>
+			<td><%= form.label(operation) %></td>
+			<td><%= form.radio_button(:operation, operation, id: "operation_#{operation}") %></td>
+		  </tr>
+		<% end %>
+	  </table>
+
+	  <%= form.submit('Посчитать', id: 'calculate-btn') %>
+	<% end %>
+	```
+
+
+	ПРИМЕЧАНИЕ:
+
+	Веб-формы по умолчанию используюет метод пост, поэтому запись `form_with url: result_path` приведет к созданию html-кода следующего вида:
+
+	```html
+	<form action="/result" accept-charset="UTF-8" method="post">
+	```
+
+	Для понимания принципов преобразования Rails-шаблонов в HTML рекомендуется посмотреть итоговую разметку в браузере.
