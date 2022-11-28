@@ -1,2 +1,11 @@
-<h2>Результат</h2>
-<p>Полученный ответ: <%= @result %></p>
+<% if @calculator.valid? %>
+  <h2>Результат</h2>
+  <p>Полученный ответ: <%= @calculator.result %></p>
+<% else %>
+  <h2>Ошибки ввода:</h2>
+  <ul>
+    <% @calculator.errors.each do |error| %>
+      <li><%= error.full_message %></li>
+    <% end %>
+  </ul>
+<% end %>
